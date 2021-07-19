@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# project template
-# Copyright(C) 2021 Red Hat, Inc.
+# Moldavite
+# Copyright(C) 2021 The Moldavite Authors.
 #
 # This program is free software: you can redistribute it and / or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,6 +15,22 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-"""This file carries the version of the template project."""
+"""Configuration of API service."""
 
-__version__ = "0.1.0"
+import logging
+import os
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class Configuration:
+    """Configuration of API service."""
+
+    APP_SECRET_KEY = os.environ["THOTH_MOLDAVITE_API_APP_SECRET_KEY"]
+    SWAGGER_YAML_PATH = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "../openapi/openapi.yaml"
+    )
+    BUILD_NAMESPACE = os.environ["THOTH_MOLDAVITE_BUILD_NAMESPACE"]
+    INFRA_NAMESPACE = os.environ["THOTH_MOLDAVITE_INFRA_NAMESPACE"]
+
+    OPENAPI_PORT = 8080

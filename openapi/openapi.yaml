@@ -1,0 +1,216 @@
+openapi: "3.0.0"
+info:
+  title: Moldavite API
+  version: 0.0.0
+servers:
+  - url: /api/v1/
+paths:
+  /version:
+    get:
+      tags:
+        - Service
+      x-openapi-router-controller: moldavite.api_v1
+      operationId: get_version
+      summary: Get Moldavite version.
+      responses:
+        '200':
+          description: Successful response with version identifier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+  /book/build:
+    post:
+      tags:
+        - Book
+      x-openapi-router-controller: moldavite.api_v1
+      operationId: post_jupyterbook_build
+      summary: Request a JupyterBook build
+      requestBody:
+        required: true
+        description: Request information
+        content:
+          application/json:
+            schema:
+              x-body-name: specification
+              $ref: '#/components/schemas/JupyterBookBuildSpecification'
+      responses:
+        '202':
+          description: Successful response with a unique request identifier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JupyterBookBuildResponse'
+
+  /book/{book_id}/status:
+    get:
+      tags:
+        - Book
+      x-openapi-router-controller: moldavite.api_v1
+      operationId: get_jupyterbook_status
+      summary: Get JupyterBook status.
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          description: A unique identifier of the JupyterBook.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response with book status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JupyterBookStatusResponse'
+
+  /book/{book_id}/log:
+    get:
+      tags:
+        - Book
+      x-openapi-router-controller: moldavite.api_v1
+      operationId: get_jupyterbook_log
+      summary: Get log of JupyterBook build process.
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          description: A unique identifier of the JupyterBook.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response with book build status.
+        '404':
+          description: The given book was not found.
+
+  /book/{book_id}:
+    delete:
+      tags:
+        - Book
+      x-openapi-router-controller: moldavite.api_v1
+      operationId: delete_jupyterbook
+      summary: Delete the given JupyterBook.
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          description: A unique identifier of the JupyterBook.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The given JupyterBook was deleted.
+
+components:
+  schemas:
+    VersionResponse:
+      type: object
+      description: A response with service version identifier.
+      additionalProperties: false
+      required:
+        - version
+        - service_version
+      properties:
+        version:
+          type: string
+          description: Version identifier.
+        service_version:
+          type: string
+          description: Service version identifier.
+
+    JupyterBookBuildSpecification:
+      type: object
+      required:
+        - repo_url
+      properties:
+        repo_url: &repoUrl
+          type: string
+          description: URL to repo with Jupyter Notebooks to be built.
+          example: "https://github.com/fridex/moldavite-example/"
+        ttl:
+          type: integer
+          description: Time To Live in seconds for the deployed book.
+          example: 10800
+        git_branch: &gitBranch
+          type: string
+          description: Git branch used for obtaining notebook.
+          example: main
+        notebook_path: &notebookPath
+          type: string
+          description: A path to JupyterBook directory.
+          example: book
+
+    JupyterBookBuildResponse:
+      type: object
+      required:
+        - book_id
+        - notebook_path
+        - git_branch
+        - repo_url
+      properties:
+        book_id: &bookId
+          type: string
+          description: A unique JupyterBook identifier.
+          example: book-210719142525-e45317e64b1852ef
+        notebook_path:
+          <<: *notebookPath
+        git_branch:
+          <<: *gitBranch
+        repo_url:
+          <<: *repoUrl
+
+    JupyterBookStatusResponse:
+      type: object
+      required:
+        - host
+        - ttl
+        - book_id
+        - notebook_path
+        - git_branch
+        - repo_url
+        - build_status
+      properties:
+        host:
+          type: string
+          nullable: true
+          description: Host exposing the built notebook
+          example: book_id.operate-first.cloud
+        ttl:
+          type: integer
+          nullable: true
+          description: Number of seconds before destroying the notebook.
+          example: 12345
+        book_id:
+         <<: *bookId
+        notebook_path:
+          <<: *notebookPath
+        git_branch:
+          <<: *gitBranch
+        repo_url:
+          <<: *repoUrl
+        build_status:
+          type: object
+          required:
+            - finished_at
+            - reason
+            - started_at
+            - state
+          properties:
+            finished_at:
+              type: string
+              nullable: true
+              description: Build finish time.
+            reason:
+              type: string
+              nullable: true
+              example: null
+            started_at:
+              type: string
+              nullable: true
+              description: Build creation time.
+            state:
+              type: string
+              description: The current build state.
+              example: pending

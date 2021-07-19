@@ -1,7 +1,7 @@
-# Changelog for Thoth's Template GitHub Project
+# Changelog for Moldavite API
 
-## [0.1.0] - 2019-Sep-11 - goern
+## [0.0.0] - 2021-July-19 - fridex
 
 ### Added
 
-all the things that you see...
+* initial project import

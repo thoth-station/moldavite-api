@@ -1,0 +1,264 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: moldavite-jupyterbook-build
+  annotations:
+    description: Moldavite JupyterBook build template
+    tags: moldavite
+    template.openshift.io/documentation-url: https://github.com/thoth-station/moldavite-api
+    template.openshift.io/provider-display-name: Red Hat, Inc.
+  labels:
+    template: moldavite-jupyterbook-build
+    app: moldavite
+
+objects:
+- kind: Workflow
+  apiVersion: argoproj.io/v1alpha1
+  metadata:
+    name: "${MOLDAVITE_BOOK_ID}"
+    labels:
+      app: moldavite
+      build_id: "${MOLDAVITE_BOOK_ID}"
+  spec:
+    serviceAccountName: argo
+    # Give 4 hours to finish the build.
+    activeDeadlineSeconds: 14400
+    ttlStrategy:
+      # Let builds live for 3 days once completed.
+      secondsAfterCompletion: 259200
+      secondsAfterSuccess: 259200
+      secondsAfterFailure: 259200
+
+    entrypoint: jupyterbook-build-book
+
+    volumes:
+    - name: output-volume
+      emptyDir: {}
+
+    arguments:
+      parameters:
+      - name: book-id
+        value: "${MOLDAVITE_BOOK_ID}"
+      - name: ceph_bucket_prefix
+      - name: ceph_bucket_name
+      - name: ceph_host
+      - name: deployment_name
+
+    templates:
+    - name: jupyterbook-build-book
+      steps:
+        - - name: build-book
+            template: build
+        - - name: create-imagestream
+            template: create-imagestream
+        - - name: create-browser
+            template: create-browser
+          - name: create-route
+            template: create-route
+          - name: create-service
+            template: create-service
+          - name: expose-browser
+            template: expose-browser
+
+    - name: build
+      inputs:
+        artifacts:
+        - name: src
+          path: /src
+          git:
+            repo: "${MOLDAVITE_REPO_URL}"
+            revision: "${MOLDAVITE_REPO_BRANCH}"
+            depth: 1
+      container:
+        image: quay.io/fridex/moldavite-builder:latest
+        command: [sh, -c]
+        args: ["jupyter-book build /src/${MOLDAVITE_BOOK_PATH}/"]
+        resources:
+          limits:
+            memory: 256Mi
+            cpu: 1
+        volumeMounts:
+          - name: output-volume
+            mountPath: "/src/${MOLDAVITE_BOOK_PATH}/_build/"
+
+    - name: create-imagestream
+      resubmitPendingPods: true
+      # No owner reference to keep this alive, clean up using cleanup-job.
+      resource:
+        action: create
+        manifest: |
+          apiVersion: image.openshift.io/v1
+          kind: ImageStream
+          metadata:
+            labels:
+              buld_id: ${MOLDAVITE_BOOK_ID}
+              mark: cleanup
+              ttl: ${MOLDAVITE_TTL}s
+            name: ${MOLDAVITE_BOOK_ID}
+            ownerReferences:
+            - apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              name: "{{workflow.name}}"
+              uid: "{{workflow.uid}}"
+          spec:
+            lookupPolicy:
+              local: true
+
+    - name: create-browser
+      serviceAccountName: argo
+      container:
+        # securityContext:
+        #   privileged: true
+        image: quay.io/podman/stable
+        command: [/bin/bash, -c]
+        args: ["\
+        exit 0;
+        podman create --name ctr quay.io/fridex/moldavite-gardener:latest;
+        podman cp /src/${MOLDAVITE_BOOK_PATH}/_build/html ctr:/opt/app-root/src/html;
+        podman stop ctr;
+        image=`podman commit ctr`;
+        podman tag $image image-registry.openshift-image-registry.svc:5000/thoth-test-core/${MOLDAVITE_BOOK_ID};
+        podman push image-registry.openshift-image-registry.svc:5000/thoth-test-core/${MOLDAVITE_BOOK_ID};
+        "]
+        resources:
+          limits:
+            memory: 128Mi
+            cpu: 1
+        volumeMounts:
+          - name: "output-volume"
+            mountPath: "/src/${MOLDAVITE_BOOK_PATH}/_build/"
+
+    - name: create-route
+      resubmitPendingPods: true
+      serviceAccountName: argo
+      # No owner reference to keep this alive, clean up using cleanup-job.
+      resource:
+        action: create
+        flags: ["--validate=false"]
+        manifest: |
+          kind: Route
+          apiVersion: route.openshift.io/v1
+          metadata:
+            name: ${MOLDAVITE_BOOK_ID}
+            labels:
+              build_id: ${MOLDAVITE_BOOK_ID}
+              mark: cleanup
+              ttl: ${MOLDAVITE_TTL}s
+          spec:
+            to:
+              kind: Service
+              name: ${MOLDAVITE_BOOK_ID}
+
+    - name: create-service
+      resubmitPendingPods: true
+      serviceAccountName: argo
+      # No owner reference to keep this alive, clean up using cleanup-job.
+      resource:
+        action: create
+        flags: ["--validate=false"]
+        manifest: |
+          kind: Service
+          apiVersion: v1
+          metadata:
+            labels:
+              service: ${MOLDAVITE_BOOK_ID}
+              mark: cleanup
+              ttl: ${MOLDAVITE_TTL}s
+            name: ${MOLDAVITE_BOOK_ID}
+          spec:
+            ports:
+              - name: port
+                protocol: TCP
+                port: 80
+                targetPort: 8080
+            selector:
+              service: ${MOLDAVITE_BOOK_ID}
+
+    - name: expose-browser
+      resubmitPendingPods: true
+      serviceAccountName: argo
+      # No owner reference to keep this alive, clean up using cleanup-job.
+      resource:
+        action: create
+        flags: ["--validate=false"]
+        manifest: |
+          kind: DeploymentConfig
+          apiVersion: apps.openshift.io/v1
+          metadata:
+            name: ${MOLDAVITE_BOOK_ID}
+            labels:
+              build_id: ${MOLDAVITE_BOOK_ID}
+              mark: cleanup
+              ttl: ${MOLDAVITE_TTL}s
+          spec:
+            replicas: 1
+            selector:
+              service: ${MOLDAVITE_BOOK_ID}
+            template:
+              metadata:
+                labels:
+                  service: ${MOLDAVITE_BOOK_ID}
+                annotations:
+                  moldavite.book_id: ${MOLDAVITE_BOOK_ID}
+                  moldavite.repo_url: ${MOLDAVITE_REPO_URL}
+                  moldavite.repo_branch: ${MOLDAVITE_REPO_BRANCH}
+                  moldavite.book_path: ${MOLDAVITE_BOOK_PATH}
+              spec:
+                containers:
+                  - name: browser
+                    image: quay.io/fridex/moldavite-browser:latest
+                    imagePullPolicy: Always
+                    command: [/opt/app-root/src/app.sh]
+                    env: []
+                    ports:
+                      - containerPort: 8080
+                        protocol: TCP
+                    resources:
+                      requests:
+                        memory: "128Mi"
+                        cpu: "0.5"
+                      limits:
+                        memory: "128Mi"
+                        cpu: "0.5"
+                    readinessProbe:
+                      httpGet:
+                        path: "/"
+                        port: 8080
+                        scheme: HTTP
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+                      timeoutSeconds: 10
+                    livenessProbe:
+                      httpGet:
+                        path: "/"
+                        port: 8080
+                        scheme: HTTP
+                      initialDelaySeconds: 5
+                      periodSeconds: 60
+                      timeoutSeconds: 10
+
+parameters:
+- name: MOLDAVITE_BOOK_ID
+  description: Id of book that is run to be built
+  displayName: Build id
+  required: true
+
+- name: MOLDAVITE_REPO_URL
+  description: URL to the Git repository for which notebooks should be built
+  displayName: Git repo URL
+  requried: true
+
+- name: MOLDAVITE_REPO_BRANCH
+  description: Branch name to be used
+  displayName: Git repo branch
+  value: master
+
+- name: MOLDAVITE_BOOK_PATH
+  description: A path to book directory
+  displayName: Book path
+  value: book
+
+- name: MOLDAVITE_TTL
+  description: Time-To-Live for the deployed book
+  displayName: ttl
+  required: true

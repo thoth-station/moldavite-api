@@ -1,0 +1,21 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+thoth-common = "*"
+gunicorn = "*"
+connexion = {extras = ["swagger-ui"], version = "*"}
+flask = "==1.1.4"
+sentry-sdk = "*"
+prometheus-flask-exporter = "*"
+prometheus-client = "*"
+flask-script = "*"
+flask-cors = "*"
+python-dateutil = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.8"
