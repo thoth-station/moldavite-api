@@ -104,29 +104,61 @@ objects:
             lookupPolicy:
               local: true
 
-    - name: create-browser
-      serviceAccountName: argo
-      container:
-        # securityContext:
-        #   privileged: true
-        image: quay.io/podman/stable
-        command: [/bin/bash, -c]
-        args: ["\
-        exit 0;
-        podman create --name ctr quay.io/fridex/moldavite-gardener:latest;
-        podman cp /src/${MOLDAVITE_BOOK_PATH}/_build/html ctr:/opt/app-root/src/html;
-        podman stop ctr;
-        image=`podman commit ctr`;
-        podman tag $image image-registry.openshift-image-registry.svc:5000/thoth-test-core/${MOLDAVITE_BOOK_ID};
-        podman push image-registry.openshift-image-registry.svc:5000/thoth-test-core/${MOLDAVITE_BOOK_ID};
-        "]
-        resources:
-          limits:
-            memory: 128Mi
-            cpu: 1
-        volumeMounts:
-          - name: "output-volume"
-            mountPath: "/src/${MOLDAVITE_BOOK_PATH}/_build/"
+    - name: trigger-build
+      resubmitPendingPods: true
+      # No owner reference to keep this alive, clean up using cleanup-job.
+      resource:
+        action: create
+        manifest: |
+          apiVersion: tekton.dev/v1beta1
+          kind: PipelineRun
+          metadata:
+            name: ${MOLDAVITE_BOOK_ID}
+            labels:
+              app: meteor-pipeline
+          spec:
+            serviceAccountName: meteor
+            pipelineRef:
+              name: jupyterbook
+            params:
+              - name: url
+                value: "${MOLDAVITE_REPO_URL}"
+              - name: ref
+                value: "${MOLDAVITE_REPO_BRANCH}"
+              - name: uid
+                value: "${MOLDAVITE_BOOK_ID}"
+            resources:
+              - name: git-repo
+                resourceSpec:
+                  type: git
+                  params:
+                    - name: revision
+                      value: ${MOLDAVITE_REPO_URL}
+                    - name: url
+                      value: ${MOLDAVITE_REPO_BRANCH}
+
+      # serviceAccountName: argo
+      # container:
+      #   # securityContext:
+      #   #   privileged: true
+      #   image: quay.io/podman/stable
+      #   command: [/bin/bash, -c]
+      #   args: ["\
+      #   exit 0;
+      #   podman create --name ctr quay.io/fridex/moldavite-gardener:latest;
+      #   podman cp /src/${MOLDAVITE_BOOK_PATH}/_build/html ctr:/opt/app-root/src/html;
+      #   podman stop ctr;
+      #   image=`podman commit ctr`;
+      #   podman tag $image image-registry.openshift-image-registry.svc:5000/thoth-test-core/${MOLDAVITE_BOOK_ID};
+      #   podman push image-registry.openshift-image-registry.svc:5000/thoth-test-core/${MOLDAVITE_BOOK_ID};
+      #   "]
+      #   resources:
+      #     limits:
+      #       memory: 128Mi
+      #       cpu: 1
+      #   volumeMounts:
+      #     - name: "output-volume"
+      #       mountPath: "/src/${MOLDAVITE_BOOK_PATH}/_build/"
 
     - name: create-route
       resubmitPendingPods: true
@@ -173,6 +205,18 @@ objects:
                 targetPort: 8080
             selector:
               service: ${MOLDAVITE_BOOK_ID}
+
+    - name: await-build
+      resubmitPendingPods: true
+      resource:
+        action: get
+        successCondition: status.Conditions.Reason == Succeeded
+        failureCondition: status.Conditions.Reason == Failed
+        manifest: |
+          apiVersion: tekton.dev/v1beta1
+          kind: PipelineRun
+          metadata:
+            name: ${MOLDAVITE_BOOK_ID}
 
     - name: expose-browser
       resubmitPendingPods: true
