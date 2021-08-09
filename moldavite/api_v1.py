@@ -46,13 +46,15 @@ _MAX_TTL = int(
 _DEFAULT_TTL = int(
     os.getenv("THOTH_MOLDAVITE_DEFAULT_TTL", datetime.timedelta(days=1).total_seconds())
 )
-_RESOURCES_CREATED = frozenset({
-    ("apps.openshift.io/v1", "DeploymentConfig"),
-    ("argoproj.io/v1alpha1", "Workflow"),
-    ("image.openshift.io/v1", "ImageStream"),
-    ("route.openshift.io/v1", "Route"),
-    ("v1", "Service"),
-})
+_RESOURCES_CREATED = frozenset(
+    {
+        ("apps.openshift.io/v1", "DeploymentConfig"),
+        ("argoproj.io/v1alpha1", "Workflow"),
+        ("image.openshift.io/v1", "ImageStream"),
+        ("route.openshift.io/v1", "Route"),
+        ("v1", "Service"),
+    }
+)
 
 
 def _get_openshift_resource(
@@ -87,7 +89,8 @@ def _get_openshift_resource(
             f"for label selector {label_selector!r} found in {namespace!r}",
         )
 
-    return response["items"][0]
+    ret: Dict[str, Any] = response["items"][0]
+    return ret
 
 
 def get_version() -> Dict[str, Any]:
@@ -101,12 +104,12 @@ def get_version() -> Dict[str, Any]:
     }
 
 
-def post_jupyterbook_build(specification: Dict[str, str]) -> Tuple[Dict[str, str], int]:
+def post_jupyterbook_build(specification: Dict[str, Any]) -> Tuple[Dict[str, str], int]:
     """Create a JupyterBook build request."""
     repo_url = specification["repo_url"]
     book_path = specification.get("book_path", _DEFAULT_BOOK_PATH)
     git_branch = specification.get("git_branch", _DEFAULT_GIT_BRANCH)
-    ttl = specification.get("ttl", _DEFAULT_TTL)
+    ttl = int(specification.get("ttl", _DEFAULT_TTL))
 
     if ttl > _MAX_TTL:
         return {"error": f"TTL exceeded, maximum TTL can be {_MAX_TTL}"}, 400
@@ -135,7 +138,7 @@ def post_jupyterbook_build(specification: Dict[str, str]) -> Tuple[Dict[str, str
     }, 202
 
 
-def get_jupyterbook_status(book_id: str) -> Tuple[Dict[str, str], int]:
+def get_jupyterbook_status(book_id: str) -> Tuple[Dict[str, Any], int]:
     """Get status of the given JupyterBook."""
     # Workflow information.
     build_status = None
@@ -225,7 +228,8 @@ def delete_jupyterbook(book_id: str) -> Tuple[Dict[str, str], int]:
     any_found = False
     for api_version, kind in _RESOURCES_CREATED:
         response = _OPENSHIFT.ocp_client.resources.get(
-            api_version=api_version, kind=kind,
+            api_version=api_version,
+            kind=kind,
         ).delete(
             namespace=Configuration.BUILD_NAMESPACE,
             label_selector=f"build_id={book_id}",

@@ -20,6 +20,9 @@
 import os
 import sys
 import logging
+from typing import Any
+from typing import Dict
+from typing import Tuple
 
 import connexion
 
@@ -27,6 +30,7 @@ from flask import redirect, jsonify, request
 from flask_script import Manager
 from flask_cors import CORS
 from prometheus_flask_exporter import PrometheusMetrics
+from werkzeug import Response
 
 from thoth.common import datetime2datetime_str
 from thoth.common import init_logging
@@ -49,7 +53,7 @@ _LOGGER.setLevel(
 
 __service_version__ = f"{__version__}+common.{__common__version__}"
 
-_LOGGER.info(f"This is Moldavite API v%s", __service_version__)
+_LOGGER.info("This is Moldavite API v%s", __service_version__)
 
 # Expose for uWSGI.
 app = connexion.App(__name__)
@@ -69,18 +73,18 @@ metrics.info("moldavite_api_info", "Moldavite API info", version=__service_versi
 CORS(app.app)
 
 
-@app.route("/")
-@metrics.do_not_track()
-def base_url():
+@app.route("/")  # type: ignore[misc]
+@metrics.do_not_track()  # type: ignore[misc]
+def base_url() -> Response:
     """Redirect to UI by default."""
     # https://github.com/pallets/flask/issues/773
     request.environ["wsgi.url_scheme"] = "https" if _THOTH_API_HTTPS else "http"
     return redirect("api/v1/ui")
 
 
-@app.route("/api/v1")
-@metrics.do_not_track()
-def api_v1():
+@app.route("/api/v1")  # type: ignore[misc]
+@metrics.do_not_track()  # type: ignore[misc]
+def api_v1() -> Any:
     """Provide a listing of all available endpoints."""
     paths = []
 
@@ -92,7 +96,7 @@ def api_v1():
     return jsonify({"paths": paths})
 
 
-def _healthiness():
+def _healthiness() -> Tuple[Dict[str, str], int, Dict[str, str]]:
     return (
         jsonify({"status": "ready", "version": __service_version__}),
         200,
@@ -100,31 +104,38 @@ def _healthiness():
     )
 
 
-@app.route("/readiness")
-@metrics.do_not_track()
-def api_readiness():
+@app.route("/readiness")  # type: ignore[misc]
+@metrics.do_not_track()  # type: ignore[misc]
+def api_readiness() -> Tuple[
+    Dict[
+        str,
+        str,
+    ],
+    int,
+    Dict[str, str],
+]:
     """Report readiness for OpenShift readiness probe."""
     return _healthiness()
 
 
-@app.route("/liveness")
-@metrics.do_not_track()
-def api_liveness():
+@app.route("/liveness")  # type: ignore[misc]
+@metrics.do_not_track()  # type: ignore[misc]
+def api_liveness() -> Tuple[Dict[str, str], int, Dict[str, str]]:
     """Report liveness for OpenShift readiness probe."""
     return _healthiness()
 
 
-@application.errorhandler(404)
-@metrics.do_not_track()
-def page_not_found(exc):
+@application.errorhandler(404)  # type: ignore[misc]
+@metrics.do_not_track()  # type: ignore[misc]
+def page_not_found(exc: Exception) -> Tuple[Dict[str, str], int]:
     """Adjust 404 page to be consistent with errors reported back from API."""
     # Flask has a nice error message - reuse it.
     return jsonify({"error": str(exc)}), 404
 
 
-@application.errorhandler(500)
-@metrics.do_not_track()
-def internal_server_error(exc):
+@application.errorhandler(500)  # type: ignore[misc]
+@metrics.do_not_track()  # type: ignore[misc]
+def internal_server_error(exc: Exception) -> Tuple[Dict[str, str], int]:
     """Adjust 500 page to be consistent with errors reported back from API."""
     # Provide some additional information so we can easily find exceptions in logs (time and exception type).
     # Later we should remove exception type (for security reasons).
@@ -142,8 +153,8 @@ def internal_server_error(exc):
     )
 
 
-@application.after_request
-def apply_headers(response):
+@application.after_request  # type: ignore[misc]
+def apply_headers(response: Response) -> Response:
     """Add headers to each response."""
     response.headers["X-Moldavite-Version"] = __service_version__
     return response
