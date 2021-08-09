@@ -163,16 +163,16 @@ objects:
               service: ${MOLDAVITE_BOOK_ID}
 
     - name: await-build
-      resubmitPendingPods: true
       resource:
         action: get
-        successCondition: status.Conditions.Reason == Succeeded
-        failureCondition: status.Conditions.Reason == Failed
+        successCondition: status.phase == Complete
+        failureCondition: status.phase in (Failed, Error)
         manifest: |
-          apiVersion: tekton.dev/v1beta1
-          kind: PipelineRun
+          apiVersion: v1
+          kind: Pod
           metadata:
-            name: ${MOLDAVITE_BOOK_ID}
+            labels:
+              tekton.dev/pipelineRun: ${MOLDAVITE_BOOK_ID}
 
     - name: expose-browser
       resubmitPendingPods: true
