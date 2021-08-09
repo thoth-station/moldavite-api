@@ -47,39 +47,18 @@ objects:
     templates:
     - name: jupyterbook-build-book
       steps:
-        - - name: build-book
-            template: build
         - - name: create-imagestream
             template: create-imagestream
-        - - name: create-browser
-            template: create-browser
-          - name: create-route
+        - - name: build-book
+            template: trigger-build
+        - - name: build-wait
+            template: await-build
+        - - name: create-route
             template: create-route
           - name: create-service
             template: create-service
           - name: expose-browser
             template: expose-browser
-
-    - name: build
-      inputs:
-        artifacts:
-        - name: src
-          path: /src
-          git:
-            repo: "${MOLDAVITE_REPO_URL}"
-            revision: "${MOLDAVITE_REPO_BRANCH}"
-            depth: 1
-      container:
-        image: quay.io/fridex/moldavite-builder:latest
-        command: [sh, -c]
-        args: ["jupyter-book build /src/${MOLDAVITE_BOOK_PATH}/"]
-        resources:
-          limits:
-            memory: 256Mi
-            cpu: 1
-        volumeMounts:
-          - name: output-volume
-            mountPath: "/src/${MOLDAVITE_BOOK_PATH}/_build/"
 
     - name: create-imagestream
       resubmitPendingPods: true
@@ -136,29 +115,6 @@ objects:
                       value: ${MOLDAVITE_REPO_URL}
                     - name: url
                       value: ${MOLDAVITE_REPO_BRANCH}
-
-      # serviceAccountName: argo
-      # container:
-      #   # securityContext:
-      #   #   privileged: true
-      #   image: quay.io/podman/stable
-      #   command: [/bin/bash, -c]
-      #   args: ["\
-      #   exit 0;
-      #   podman create --name ctr quay.io/fridex/moldavite-gardener:latest;
-      #   podman cp /src/${MOLDAVITE_BOOK_PATH}/_build/html ctr:/opt/app-root/src/html;
-      #   podman stop ctr;
-      #   image=`podman commit ctr`;
-      #   podman tag $image image-registry.openshift-image-registry.svc:5000/thoth-test-core/${MOLDAVITE_BOOK_ID};
-      #   podman push image-registry.openshift-image-registry.svc:5000/thoth-test-core/${MOLDAVITE_BOOK_ID};
-      #   "]
-      #   resources:
-      #     limits:
-      #       memory: 128Mi
-      #       cpu: 1
-      #   volumeMounts:
-      #     - name: "output-volume"
-      #       mountPath: "/src/${MOLDAVITE_BOOK_PATH}/_build/"
 
     - name: create-route
       resubmitPendingPods: true
