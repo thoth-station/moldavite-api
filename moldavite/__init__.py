@@ -19,4 +19,4 @@
 
 
 __name__ = "moldavite"
-__version__ = "0.0.0"
+__version__ = "0.0.1"
