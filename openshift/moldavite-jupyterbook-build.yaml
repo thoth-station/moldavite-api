@@ -47,6 +47,8 @@ objects:
     templates:
     - name: jupyterbook-build-book
       steps:
+        - - name: prepare-env
+            template: prepare-env
         - - name: create-imagestream
             template: create-imagestream
         - - name: build-book
@@ -59,6 +61,26 @@ objects:
             template: create-service
           - name: expose-browser
             template: expose-browser
+
+    - name: prepare-env
+      resubmitPendingPods: true
+      serviceAccountName: argo
+      script:
+        image: kubectl
+        imagePullPolicy: Always
+        command: [bash]
+        source: |-
+          # Clean up old objects on resubmit.
+          kubectl delete imagestream "${MOLDAVITE_BOOK_ID}"
+          kubectl delete pipelinerun "${MOLDAVITE_BOOK_ID}"
+          kubectl delete route "${MOLDAVITE_BOOK_ID}"
+          kubectl delete service "${MOLDAVITE_BOOK_ID}"
+          kubectl delete deploymentconfig "${MOLDAVITE_BOOK_ID}"
+          exit 0
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
 
     - name: create-imagestream
       resubmitPendingPods: true
