@@ -164,15 +164,33 @@ objects:
 
     - name: await-build
       resubmitPendingPods: true
-      resource:
-        action: get
-        successCondition: status.Conditions.Reason == Succeeded
-        failureCondition: status.Conditions.Reason == Failed
-        manifest: |
-          apiVersion: tekton.dev/v1beta1
-          kind: PipelineRun
-          metadata:
-            name: ${MOLDAVITE_BOOK_ID}
+      serviceAccountName: argo
+      script:
+        image: kubectl
+        imagePullPolicy: Always
+        command: [bash]
+        source: |-
+          set -x
+          while true
+          do
+            state=$(
+              kubectl get pipelineruns -o go-template \
+              --template '{{range .status.conditions}}{{.reason}}{{" "}}{{"\n"}}{{end}}' \
+              "${MOLDAVITE_BOOK_ID}" \
+            )
+            [[ $? -eq 0 ]] || exit 1
+
+            [[ "$state" = "Succeeded" ]] && exit 0
+            [[ "$state" = "Running" || "$state" = "Pending" ]] && sleep 30s && continue
+
+            echo "Build exited with state reported: $state" 1>&2
+            exit 1
+          done
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+
 
     - name: expose-browser
       resubmitPendingPods: true
