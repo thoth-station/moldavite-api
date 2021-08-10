@@ -206,9 +206,8 @@ objects:
               spec:
                 containers:
                   - name: browser
-                    image: quay.io/fridex/moldavite-browser:latest
+                    image: ${MOLDAVITE_BOOK_ID}:latest
                     imagePullPolicy: Always
-                    command: [/opt/app-root/src/app.sh]
                     env: []
                     ports:
                       - containerPort: 8080
