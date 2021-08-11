@@ -117,6 +117,11 @@ objects:
             name: ${MOLDAVITE_BOOK_ID}
             labels:
               app: meteor-pipeline
+            ownerReferences:
+              - apiVersion: argoproj.io/v1alpha1
+                kind: Workflow
+                name: "{{workflow.name}}"
+                uid: "{{workflow.uid}}"
           spec:
             serviceAccountName: meteor
             pipelineRef:
