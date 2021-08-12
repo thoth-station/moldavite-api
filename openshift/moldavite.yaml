@@ -1,0 +1,110 @@
+---
+kind: DeploymentConfig
+apiVersion: apps.openshift.io/v1
+metadata:
+  name: moldavite
+spec:
+  test: false
+  replicas: 1
+  selector:
+    app.kubernetes.io/component: moldavite
+    app.kubernetes.io/managed-by: aicoe-thoth-devops
+    app.kubernetes.io/name: thoth
+    service: moldavite
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: moldavite
+        app.kubernetes.io/managed-by: aicoe-thoth-devops
+        app.kubernetes.io/name: thoth
+        service: moldavite
+    spec:
+      serviceAccountName: moldavite
+      containers:
+        - name: moldavite
+          image: moldavite:latest
+          imagePullPolicy: Always
+          env:
+            - name: APP_MODULE
+              value: "moldavite.entrypoint:app"
+            - name: KUBERNETES_API_URL
+              value: "https://kubernetes.default.svc.cluster.local"
+            - name: KUBERNETES_VERIFY_TLS
+              value: "0"
+            - name: WEB_CONCURRENCY
+              value: "1"
+            - name: THOTH_API_HTTPS
+              value: "0"
+            - name: THOTH_MOLDAVITE_DEBUG
+              value: "0"
+            - name: THOTH_MOLDAVITE_INFRA_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  key: infra-namespace
+                  name: moldavite
+            - name: THOTH_MOLDAVITE_BUILD_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  key: build-namespace
+                  name: moldavite
+            - name: THOTH_MOLDAVITE_API_APP_SECRET_KEY
+              valueFrom:
+                configMapKeyRef:
+                  key: app-secret
+                  name: moldavite
+            - name: THOTH_DEPLOYMENT_NAME
+              valueFrom:
+                configMapKeyRef:
+                  key: deployment-name
+                  name: thoth
+            - name: THOTH_S3_ENDPOINT_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: host
+                  name: ceph
+            - name: THOTH_CEPH_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  key: bucket-name
+                  name: ceph
+            - name: THOTH_CEPH_BUCKET_PREFIX
+              valueFrom:
+                configMapKeyRef:
+                  key: bucket-prefix
+                  name: ceph
+            - name: THOTH_CEPH_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ceph
+                  key: key-id
+            - name: THOTH_CEPH_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ceph
+                  key: secret-key
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              memory: "500Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: "/readiness"
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: "/liveness"
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 60
+            timeoutSeconds: 10

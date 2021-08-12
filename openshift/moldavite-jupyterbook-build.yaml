@@ -20,7 +20,7 @@ objects:
       app: moldavite
       build_id: "${MOLDAVITE_BOOK_ID}"
   spec:
-    serviceAccountName: argo
+    serviceAccountName: moldavite
     # Give 4 hours to finish the build.
     activeDeadlineSeconds: 14400
     ttlStrategy:
@@ -139,9 +139,9 @@ objects:
                   type: git
                   params:
                     - name: revision
-                      value: ${MOLDAVITE_REPO_URL}
-                    - name: url
                       value: ${MOLDAVITE_REPO_BRANCH}
+                    - name: url
+                      value: ${MOLDAVITE_REPO_URL}
 
     - name: create-route
       resubmitPendingPods: true
@@ -191,7 +191,6 @@ objects:
 
     - name: await-build
       resubmitPendingPods: true
-      serviceAccountName: argo
       script:
         image: kubectl
         imagePullPolicy: Always
@@ -202,14 +201,18 @@ objects:
           do
             state=$(
               kubectl get pipelineruns -o go-template \
-              --template '{{range .status.conditions}}{{.reason}}{{" "}}{{"\n"}}{{end}}' \
+              --template '{{range .status.conditions}}{{.reason}}{{"\n"}}{{end}}' \
               "${MOLDAVITE_BOOK_ID}" \
             )
-            [[ $? -eq 0 ]] || exit 1
+            [ $? -eq 0 ] || exit 1
 
-            [[ "$state" = "Succeeded" ]] && exit 0
-            [[ "$state" = "Running" || "$state" = "Pending" ]] && sleep 30s && continue
-
+            if [ "$state" == "Succeeded" ]; then
+                exit 0
+            fi
+            if [ "$state" == "Running" ] || [ "$state" == "Pending" ]; then
+                sleep 30s
+                continue
+            fi
             echo "Build exited with state reported: $state" 1>&2
             exit 1
           done

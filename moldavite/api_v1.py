@@ -26,7 +26,7 @@ from typing import Union
 
 import datetime
 from dateutil.parser import parse as datetime_parser
-from thoth.common.exceptions import NotFoundException
+from thoth.common.exceptions import NotFoundExceptionError
 from thoth.common import OpenShift
 
 from .configuration import Configuration
@@ -84,7 +84,7 @@ def _get_openshift_resource(
                 namespace,
             )
 
-        raise NotFoundException(
+        raise NotFoundExceptionError(
             f"Multiple resources of kind {kind!r} (API version {api_version!r}) "
             f"for label selector {label_selector!r} found in {namespace!r}",
         )
@@ -106,7 +106,7 @@ def get_version() -> Dict[str, Any]:
 
 def post_jupyterbook_build(specification: Dict[str, Any]) -> Tuple[Dict[str, str], int]:
     """Create a JupyterBook build request."""
-    repo_url = specification["repo_url"]
+    repo_url = specification["repo_url"].strip()
     book_path = specification.get("book_path", _DEFAULT_BOOK_PATH)
     git_branch = specification.get("git_branch", _DEFAULT_GIT_BRANCH)
     ttl = int(specification.get("ttl", _DEFAULT_TTL))
@@ -130,12 +130,15 @@ def post_jupyterbook_build(specification: Dict[str, Any]) -> Tuple[Dict[str, str
         workflow_namespace=Configuration.BUILD_NAMESPACE,
     )
 
-    return {
-        "book_id": book_id,
-        "repo_url": repo_url,
-        "git_branch": git_branch,
-        "book_path": book_path,
-    }, 202
+    return (
+        {
+            "book_id": book_id,
+            "repo_url": repo_url,
+            "git_branch": git_branch,
+            "book_path": book_path,
+        },
+        202,
+    )
 
 
 def get_jupyterbook_status(book_id: str) -> Tuple[Dict[str, Any], int]:
@@ -146,7 +149,7 @@ def get_jupyterbook_status(book_id: str) -> Tuple[Dict[str, Any], int]:
         build_status = _OPENSHIFT.get_workflow_status_report(
             workflow_id=book_id, namespace=Configuration.BUILD_NAMESPACE
         )
-    except NotFoundException:
+    except NotFoundExceptionError:
         _LOGGER.warning(
             f"No workflow {book_id!r} found in {Configuration.BUILD_NAMESPACE}"
         )
@@ -161,7 +164,7 @@ def get_jupyterbook_status(book_id: str) -> Tuple[Dict[str, Any], int]:
             label_selector=f"build_id={book_id}",
             namespace=Configuration.BUILD_NAMESPACE,
         )
-    except NotFoundException:
+    except NotFoundExceptionError:
         _LOGGER.warning(
             f"No route {book_id!r} found in {Configuration.BUILD_NAMESPACE}"
         )
@@ -178,7 +181,7 @@ def get_jupyterbook_status(book_id: str) -> Tuple[Dict[str, Any], int]:
             label_selector=f"build_id={book_id}",
             namespace=Configuration.BUILD_NAMESPACE,
         )
-    except NotFoundException:
+    except NotFoundExceptionError:
         _LOGGER.warning(
             f"No DeploymentConfig {book_id!r} found in {Configuration.BUILD_NAMESPACE}"
         )
@@ -208,19 +211,25 @@ def get_jupyterbook_status(book_id: str) -> Tuple[Dict[str, Any], int]:
         )
 
     if build_status is None and ttl is None:
-        return {
-            "error": f"Book {book_id!r} does not exist or the build has not started yet"
-        }, 404
+        return (
+            {
+                "error": f"Book {book_id!r} does not exist or the build has not started yet"
+            },
+            404,
+        )
 
-    return {
-        "host": host,
-        "ttl": ttl,
-        "book_id": book_id,
-        "book_path": book_path,
-        "git_branch": git_branch,
-        "repo_url": repo_url,
-        "build_status": build_status,
-    }, 200
+    return (
+        {
+            "host": host,
+            "ttl": ttl,
+            "book_id": book_id,
+            "book_path": book_path,
+            "git_branch": git_branch,
+            "repo_url": repo_url,
+            "build_status": build_status,
+        },
+        200,
+    )
 
 
 def delete_jupyterbook(book_id: str) -> Tuple[Dict[str, str], int]:
@@ -239,9 +248,12 @@ def delete_jupyterbook(book_id: str) -> Tuple[Dict[str, str], int]:
             any_found = True
 
     if not any_found:
-        return {
-            "error": f"Book {book_id!r} does not exist or the build has not started yet"
-        }, 404
+        return (
+            {
+                "error": f"Book {book_id!r} does not exist or the build has not started yet"
+            },
+            404,
+        )
 
     return {"book_id": book_id}, 201
 
@@ -259,7 +271,106 @@ def get_jupyterbook_log(
             workflow_id=book_id,
             namespace=Configuration.BUILD_NAMESPACE,
         )
-    except NotFoundException:
+    except NotFoundExceptionError:
         return {"error": f"No book with id {book_id!r} found"}, 404
+
+    return {"log": log}, 200
+
+
+def post_jupyterhub_build(specification: Dict[str, Any]) -> Tuple[Dict[str, str], int]:
+    """Create a JupyterHub build request."""
+    repo_url = specification["repo_url"].strip()
+    git_branch = specification.get("git_branch", _DEFAULT_GIT_BRANCH)
+    notebook_id = _OPENSHIFT.generate_id("notebook")
+
+    _OPENSHIFT.workflow_manager.submit_workflow_from_template(
+        namespace=Configuration.INFRA_NAMESPACE,
+        label_selector="template=moldavite-jupyterhub-notebook-build",
+        template_parameters={
+            "MOLDAVITE_REPO_URL": repo_url,
+            "MOLDAVITE_NOTEBOOK_ID": notebook_id,
+            "MOLDAVITE_REPO_BRANCH": git_branch,
+        },
+        workflow_parameters=_OPENSHIFT._assign_workflow_parameters_for_ceph(),  # XXX: remove private call
+        workflow_namespace=Configuration.BUILD_NAMESPACE,
+    )
+
+    return (
+        {"notebook_id": notebook_id, "repo_url": repo_url, "git_branch": git_branch},
+        202,
+    )
+
+
+def get_jupyterhub_status(notebook_id: str) -> Tuple[Dict[str, Any], int]:
+    """Get status of the given JupyterHub NoteBook."""
+    # Workflow information.
+    build_status = None
+    try:
+        build_status = _OPENSHIFT.get_workflow_status_report(
+            workflow_id=notebook_id, namespace=Configuration.BUILD_NAMESPACE
+        )
+    except NotFoundExceptionError:
+        _LOGGER.warning(
+            f"No workflow {notebook_id!r} found in {Configuration.BUILD_NAMESPACE}"
+        )
+
+    if build_status is None:
+        return (
+            {
+                "error": f"NoteBook {notebook_id!r} does not exist or the build has not started yet"
+            },
+            404,
+        )
+
+    return (
+        {
+            "notebook_id": notebook_id,
+            "build_status": build_status,
+        },
+        200,
+    )
+
+
+def delete_jupyterhub(notebook_id: str) -> Tuple[Dict[str, str], int]:
+    """Delete the given JupyterHub NoteBook."""
+    any_found = False
+    for api_version, kind in _RESOURCES_CREATED:
+        response = _OPENSHIFT.ocp_client.resources.get(
+            api_version=api_version,
+            kind=kind,
+        ).delete(
+            namespace=Configuration.BUILD_NAMESPACE,
+            label_selector=f"build_id={notebook_id}",
+        )
+        response = response.to_dict()
+        if len(response["items"]) != 0:
+            any_found = True
+
+    if not any_found:
+        return (
+            {
+                "error": f"NoteBook {notebook_id!r} does not exist or the build has not started yet"
+            },
+            404,
+        )
+
+    return {"notebook_id": notebook_id}, 201
+
+
+def get_jupyterhub_log(
+    notebook_id: str,
+) -> Tuple[Dict[str, Union[str, Dict[str, str]]], int]:
+    """Get logs of the given JupyterHub NoteBook workflow."""
+    log = {}
+
+    # XXX: eventually logs from other containers to help with issues debugging (e.g. wrong Git branch)
+    try:
+        log["build-book"] = _OPENSHIFT.get_workflow_node_log(
+            node_name="build-book",
+            workflow_id=notebook_id,
+            namespace=Configuration.BUILD_NAMESPACE,
+        )
+    except NotFoundExceptionError:
+        return {"error": f"No notebook with id {notebook_id!r} found"}, 404
 
     return {"log": log}, 200

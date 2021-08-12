@@ -38,8 +38,8 @@ from thoth.common import __version__ as __common__version__
 
 from datetime import datetime
 
-from . import __version__
-from .configuration import Configuration
+from moldavite import __version__
+from moldavite.configuration import Configuration
 
 
 # Configure global application logging using Thoth's init_logging.
@@ -161,4 +161,6 @@ def apply_headers(response: Response) -> Response:
 
 
 if __name__ == "__main__":
+    app.run()
+
     sys.exit(1)
