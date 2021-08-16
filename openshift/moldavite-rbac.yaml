@@ -1,0 +1,161 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: moldavite
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: moldavite
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+      - template.openshift.io
+    resources:
+      - processedtemplates
+      - templates
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: moldavite-imagestream
+rules:
+  - apiGroups:
+      - image.openshift.io
+    resources:
+      - imagestreamimages
+      - imagestreammappings
+      - imagestreams
+      - imagestreams/secrets
+      - imagestreamtags
+      - imagetags
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: moldavite-pipeline
+rules:
+  - apiGroups:
+      - "tekton.dev"
+    resources:
+      - pipelineruns
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: moldavite-pods-info
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods/log
+      - pods/status
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: moldavite
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: moldavite
+subjects:
+  - kind: ServiceAccount
+    name: moldavite
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: moldavite-pods-info
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: moldavite-pods-info
+subjects:
+  - kind: ServiceAccount
+    name: moldavite
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: moldavite-imagestream
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: moldavite-imagestream
+subjects:
+  - kind: ServiceAccount
+    name: moldavite
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: moldavite-pipeline
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: moldavite-pipeline
+subjects:
+  - kind: ServiceAccount
+    name: moldavite
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: moldavite-argo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo
+subjects:
+  - kind: ServiceAccount
+    name: moldavite
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: moldavite-argo-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-admin
+subjects:
+  - kind: ServiceAccount
+    name: moldavite

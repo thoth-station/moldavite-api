@@ -1,0 +1,184 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: moldavite-jupyterhub-build
+  annotations:
+    description: Moldavite jupyterhub-notebook build template
+    tags: moldavite
+    template.openshift.io/documentation-url: https://github.com/thoth-station/moldavite-api
+    template.openshift.io/provider-display-name: Red Hat, Inc.
+  labels:
+    template: moldavite-jupyterhub-notebook-build
+    app: moldavite
+
+objects:
+- kind: Workflow
+  apiVersion: argoproj.io/v1alpha1
+  metadata:
+    name: "${MOLDAVITE_NOTEBOOK_ID}"
+    labels:
+      app: moldavite
+      build_id: "${MOLDAVITE_NOTEBOOK_ID}"
+  spec:
+    serviceAccountName: moldavite
+    # Give 4 hours to finish the build.
+    activeDeadlineSeconds: 14400
+    ttlStrategy:
+      # Let builds live for 3 days once completed.
+      secondsAfterCompletion: 259200
+      secondsAfterSuccess: 259200
+      secondsAfterFailure: 259200
+
+    entrypoint: jupyterhub-notebook-build-book
+
+    volumes:
+    - name: output-volume
+      emptyDir: {}
+
+    arguments:
+      parameters:
+      - name: notebook_id
+        value: "${MOLDAVITE_NOTEBOOK_ID}"
+      - name: ceph_bucket_prefix
+      - name: ceph_bucket_name
+      - name: ceph_host
+      - name: deployment_name
+
+    templates:
+    - name: jupyterhub-notebook-build-book
+      steps:
+        - - name: prepare-env
+            template: prepare-env
+        - - name: create-imagestream
+            template: create-imagestream
+        - - name: build-book
+            template: trigger-build
+        - - name: build-wait
+            template: await-build
+
+    - name: prepare-env
+      resubmitPendingPods: true
+      serviceAccountName: argo
+      script:
+        image: kubectl
+        imagePullPolicy: Always
+        command: [bash]
+        source: |-
+          # Clean up old objects on resubmit.
+          kubectl delete imagestream "${MOLDAVITE_NOTEBOOK_ID}"
+          kubectl delete pipelinerun "${MOLDAVITE_NOTEBOOK_ID}"
+          exit 0
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+
+    - name: create-imagestream
+      resubmitPendingPods: true
+      # No owner reference to keep this alive, clean up using cleanup-job.
+      resource:
+        action: create
+        manifest: |
+          apiVersion: image.openshift.io/v1
+          kind: ImageStream
+          metadata:
+            labels:
+              buld_id: ${MOLDAVITE_NOTEBOOK_ID}
+              mark: cleanup
+              ttl: ${MOLDAVITE_TTL}s
+            name: ${MOLDAVITE_NOTEBOOK_ID}
+            ownerReferences:
+            - apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              name: "{{workflow.name}}"
+              uid: "{{workflow.uid}}"
+          spec:
+            lookupPolicy:
+              local: true
+
+    - name: trigger-build
+      resubmitPendingPods: true
+      # No owner reference to keep this alive, clean up using cleanup-job.
+      resource:
+        action: create
+        manifest: |
+          apiVersion: tekton.dev/v1beta1
+          kind: PipelineRun
+          metadata:
+            name: ${MOLDAVITE_NOTEBOOK_ID}
+            labels:
+              app: meteor-pipeline
+            ownerReferences:
+              - apiVersion: argoproj.io/v1alpha1
+                kind: Workflow
+                name: "{{workflow.name}}"
+                uid: "{{workflow.uid}}"
+          spec:
+            serviceAccountName: meteor
+            pipelineRef:
+              name: jupyterhub
+            params:
+              - name: url
+                value: "${MOLDAVITE_REPO_URL}"
+              - name: ref
+                value: "${MOLDAVITE_REPO_BRANCH}"
+              - name: uid
+                value: "${MOLDAVITE_NOTEBOOK_ID}"
+            resources:
+              - name: git-repo
+                resourceSpec:
+                  type: git
+                  params:
+                    - name: revision
+                      value: ${MOLDAVITE_REPO_BRANCH}
+                    - name: url
+                      value: ${MOLDAVITE_REPO_URL}
+
+    - name: await-build
+      resubmitPendingPods: true
+      script:
+        image: kubectl
+        imagePullPolicy: Always
+        command: [bash]
+        source: |-
+          set -x
+          while true
+          do
+            state=$(
+              kubectl get pipelineruns -o go-template \
+              --template '{{range .status.conditions}}{{.reason}}{{"\n"}}{{end}}' \
+              "${MOLDAVITE_NOTEBOOK_ID}" \
+            )
+            [ $? -eq 0 ] || exit 1
+
+            if [ "$state" == "Succeeded" ]; then
+                exit 0
+            fi
+            if [ "$state" == "Running" ] || [ "$state" == "Pending" ]; then
+                sleep 30s
+                continue
+            fi
+
+            echo "Build exited with state reported: $state" 1>&2
+            exit 1
+          done
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+
+parameters:
+- name: MOLDAVITE_NOTEBOOK_ID
+  description: Id of notebook that is to be built
+  displayName: Build id
+  required: true
+
+- name: MOLDAVITE_REPO_URL
+  description: URL to the Git repository for which notebooks should be built
+  displayName: Git repo URL
+  requried: true
+
+- name: MOLDAVITE_REPO_BRANCH
+  description: Branch name to be used
+  displayName: Git repo branch
+  value: master

@@ -103,6 +103,89 @@ paths:
         '200':
           description: The given JupyterBook was deleted.
 
+  /notebook/build:
+    post:
+      tags:
+        - NoteBook
+      x-openapi-router-controller: moldavite.api_v1
+      operationId: post_jupyterhub_build
+      summary: Request a JupyterHub NoteBook build
+      requestBody:
+        required: true
+        description: Request information
+        content:
+          application/json:
+            schema:
+              x-body-name: specification
+              $ref: '#/components/schemas/JupyterHubBuildSpecification'
+      responses:
+        '202':
+          description: Successful response with a unique request identifier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JupyterHubBuildResponse'
+
+  /notebook/{notebook_id}/status:
+    get:
+      tags:
+        - NoteBook
+      x-openapi-router-controller: moldavite.api_v1
+      operationId: get_jupyterhub_status
+      summary: Get JupyterHub NoteBook status.
+      parameters:
+        - name: notebook_id
+          in: path
+          required: true
+          description: A unique identifier of the JupyterHub NoteBook.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response with notebook status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JupyterHubStatusResponse'
+
+  /notebook/{notebook_id}/log:
+    get:
+      tags:
+        - NoteBook
+      x-openapi-router-controller: moldavite.api_v1
+      operationId: get_jupyterhub_log
+      summary: Get log of JupyterHub NoteBook build process.
+      parameters:
+        - name: notebook_id
+          in: path
+          required: true
+          description: A unique identifier of the JupyterHub NoteBook.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response with notebook build status.
+        '404':
+          description: The given notebook was not found.
+
+  /notebook/{notebook_id}:
+    delete:
+      tags:
+        - NoteBook
+      x-openapi-router-controller: moldavite.api_v1
+      operationId: delete_jupyterhub
+      summary: Delete the given JupyterHub NoteBook.
+      parameters:
+        - name: notebook_id
+          in: path
+          required: true
+          description: A unique identifier of the JupyterHub NoteBook.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The given NoteBook was deleted.
+
 components:
   schemas:
     VersionResponse:
@@ -186,6 +269,71 @@ components:
          <<: *bookId
         notebook_path:
           <<: *notebookPath
+        git_branch:
+          <<: *gitBranch
+        repo_url:
+          <<: *repoUrl
+        build_status:
+          type: object
+          required:
+            - finished_at
+            - reason
+            - started_at
+            - state
+          properties:
+            finished_at:
+              type: string
+              nullable: true
+              description: Build finish time.
+            reason:
+              type: string
+              nullable: true
+              example: null
+            started_at:
+              type: string
+              nullable: true
+              description: Build creation time.
+            state:
+              type: string
+              description: The current build state.
+              example: pending
+
+    JupyterHubBuildSpecification:
+      type: object
+      required:
+        - repo_url
+      properties:
+        repo_url:
+          <<: *repoUrl
+        git_branch:
+          <<: *gitBranch
+
+    JupyterHubBuildResponse:
+      type: object
+      required:
+        - notebook_id
+        - git_branch
+        - repo_url
+      properties:
+        notebook_id: &notebookId
+          type: string
+          description: A unique JupyterHub NoteBook identifier.
+          example: notebook-210719142525-e45317e64b1852ef
+        git_branch:
+          <<: *gitBranch
+        repo_url:
+          <<: *repoUrl
+
+    JupyterHubStatusResponse:
+      type: object
+      required:
+        - notebook_id
+        - git_branch
+        - repo_url
+        - build_status
+      properties:
+        notebook_id:
+         <<: *notebookId
         git_branch:
           <<: *gitBranch
         repo_url:
