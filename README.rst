@@ -1,10 +1,9 @@
 💎 Moldavite
 ------------
 
-.. note::
 
-  Moldavite is a forest green, olive green or blue greenish vitreous silica
-  projectile rock formed by a meteorite impact probably in southern Germany.
+*Moldavite is a forest green, olive green or blue greenish vitreous silica*
+*projectile rock formed by a meteorite impact probably in southern Germany.*
 
 Source: `Wikipedia <https://en.wikipedia.org/wiki/Moldavite>`__
 
@@ -24,8 +23,6 @@ Requirements for deployment
 * Argo Workflows
 * Thoth's `cleanup-job <https://github.com/thoth-station/cleanup-job>`__ - used for
   cleaning resources in the cluster
-* privileged containers for running ``podman``/``buildah`` to create JupyterBook
-
 
 See `example repo for example input <https://github.com/fridex/moldavite-example>`__.
 
