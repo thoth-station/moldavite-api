@@ -126,7 +126,7 @@ def post_jupyterbook_build(specification: Dict[str, Any]) -> Tuple[Dict[str, str
             "MOLDAVITE_BOOK_PATH": book_path,
             "MOLDAVITE_TTL": ttl,
         },
-        workflow_parameters=_OPENSHIFT._assign_workflow_parameters_for_ceph(),  # XXX: remove private call
+        workflow_parameters={},
         workflow_namespace=Configuration.BUILD_NAMESPACE,
     )
 
