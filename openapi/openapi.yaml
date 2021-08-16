@@ -65,26 +65,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/JupyterBookStatusResponse'
 
-  /book/{book_id}/log:
-    get:
-      tags:
-        - Book
-      x-openapi-router-controller: moldavite.api_v1
-      operationId: get_jupyterbook_log
-      summary: Get log of JupyterBook build process.
-      parameters:
-        - name: book_id
-          in: path
-          required: true
-          description: A unique identifier of the JupyterBook.
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successful response with book build status.
-        '404':
-          description: The given book was not found.
-
   /book/{book_id}:
     delete:
       tags:
@@ -147,26 +127,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JupyterHubStatusResponse'
-
-  /notebook/{notebook_id}/log:
-    get:
-      tags:
-        - NoteBook
-      x-openapi-router-controller: moldavite.api_v1
-      operationId: get_jupyterhub_log
-      summary: Get log of JupyterHub NoteBook build process.
-      parameters:
-        - name: notebook_id
-          in: path
-          required: true
-          description: A unique identifier of the JupyterHub NoteBook.
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successful response with notebook build status.
-        '404':
-          description: The given notebook was not found.
 
   /notebook/{notebook_id}:
     delete:
