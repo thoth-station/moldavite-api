@@ -22,7 +22,6 @@ import logging
 from typing import Any
 from typing import Dict
 from typing import Tuple
-from typing import Union
 
 import datetime
 from dateutil.parser import parse as datetime_parser
@@ -258,25 +257,6 @@ def delete_jupyterbook(book_id: str) -> Tuple[Dict[str, str], int]:
     return {"book_id": book_id}, 201
 
 
-def get_jupyterbook_log(
-    book_id: str,
-) -> Tuple[Dict[str, Union[str, Dict[str, str]]], int]:
-    """Get logs of the given JupyterBook workflow."""
-    log = {}
-
-    # XXX: eventually logs from other containers to help with issues debugging (e.g. wrong Git branch)
-    try:
-        log["build-book"] = _OPENSHIFT.get_workflow_node_log(
-            node_name="build-book",
-            workflow_id=book_id,
-            namespace=Configuration.BUILD_NAMESPACE,
-        )
-    except NotFoundExceptionError:
-        return {"error": f"No book with id {book_id!r} found"}, 404
-
-    return {"log": log}, 200
-
-
 def post_jupyterhub_build(specification: Dict[str, Any]) -> Tuple[Dict[str, str], int]:
     """Create a JupyterHub build request."""
     repo_url = specification["repo_url"].strip()
@@ -355,22 +335,3 @@ def delete_jupyterhub(notebook_id: str) -> Tuple[Dict[str, str], int]:
         )
 
     return {"notebook_id": notebook_id}, 201
-
-
-def get_jupyterhub_log(
-    notebook_id: str,
-) -> Tuple[Dict[str, Union[str, Dict[str, str]]], int]:
-    """Get logs of the given JupyterHub NoteBook workflow."""
-    log = {}
-
-    # XXX: eventually logs from other containers to help with issues debugging (e.g. wrong Git branch)
-    try:
-        log["build-book"] = _OPENSHIFT.get_workflow_node_log(
-            node_name="build-book",
-            workflow_id=notebook_id,
-            namespace=Configuration.BUILD_NAMESPACE,
-        )
-    except NotFoundExceptionError:
-        return {"error": f"No notebook with id {notebook_id!r} found"}, 404
-
-    return {"log": log}, 200
