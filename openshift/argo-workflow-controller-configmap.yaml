@@ -1,0 +1,23 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workflow-controller-configmap
+data:
+  config: |
+    containerRuntimeExecutor: k8sapi
+    parallelism: 10
+
+    # metricsConfig controls the path and port for prometheus metrics
+    metricsConfig:
+      enabled: true
+      path: /metrics
+      port: 8080
+
+    workflowDefaults:
+      spec:
+        ttlStrategy:
+          secondsAfterCompletion: 7200
+          secondsAfterSuccess: 7200
+          secondsAfterFailure: 7200
+        parallelism: 10

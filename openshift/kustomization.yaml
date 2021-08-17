@@ -14,3 +14,4 @@ resources:
   - argo-management.yaml
   - argo-ui-controller.yaml
   - argo-workflow-controller.yaml
+  - argo-workflow-controller-configmap.yaml
