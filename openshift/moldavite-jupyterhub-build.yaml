@@ -35,15 +35,6 @@ objects:
     - name: output-volume
       emptyDir: {}
 
-    arguments:
-      parameters:
-      - name: notebook_id
-        value: "${MOLDAVITE_NOTEBOOK_ID}"
-      - name: ceph_bucket_prefix
-      - name: ceph_bucket_name
-      - name: ceph_host
-      - name: deployment_name
-
     templates:
     - name: jupyterhub-notebook-build-book
       steps:
